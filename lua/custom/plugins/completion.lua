@@ -11,6 +11,7 @@ return {
     keymap = {
       ['<C-u>'] = { 'scroll_documentation_up', 'fallback' },
       ['<C-d>'] = { 'scroll_documentation_down', 'fallback' },
+      ['<CR>'] = { 'accept', 'fallback' }, -- 使用回车键接受补全
     },
     signature = {
       enabled = true,
