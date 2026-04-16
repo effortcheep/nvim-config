@@ -65,22 +65,7 @@
 ---
 --- It is recommended to use the same version of TypeScript in all packages, and therefore have it available in your workspace root. The location of the TypeScript binary will be determined automatically, but only once.
 ---
-
-local function get_vue_ts_plugin_path()
-  -- 对于 Mason v2
-  local mason_path = vim.fn.stdpath('data') .. '/mason/packages'
-  local vue_ls_path = mason_path .. '/vue-language-server'
-  
-  -- 检查路径是否存在
-  if vim.fn.isdirectory(vue_ls_path) == 1 then
-    return vue_ls_path .. '/node_modules/@vue/language-server'
-  end
-  
-  -- 如果找不到，返回 nil 或默认路径
-  return nil
-end
-
-local vue_plugin_path = get_vue_ts_plugin_path()
+--- This includes the same Deno-excluding logic from `ts_ls`. It is not recommended to enable both `vtsls` and `ts_ls` at the same time!
 
 ---@type vim.lsp.Config
 return {
@@ -88,28 +73,11 @@ return {
   init_options = {
     hostInfo = 'neovim',
   },
-  settings = {
-    vtsls = {
-      tsserver = {
-        globalPlugins = {
-          {
-            name = '@vue/typescript-plugin',
-            location = vue_plugin_path, -- 需要替换为实际路径
-            languages = { 'vue' },
-            configNamespace = 'typescript',
-          },
-        },
-      },
-    },
-  },
   filetypes = {
     'javascript',
     'javascriptreact',
-    'javascript.jsx',
     'typescript',
     'typescriptreact',
-    'typescript.tsx',
-    'vue',
   },
   root_dir = function(bufnr, on_dir)
     -- The project root is where the LSP can be started from
@@ -120,15 +88,20 @@ return {
     -- Give the root markers equal priority by wrapping them in a table
     root_markers = vim.fn.has('nvim-0.11.3') == 1 and { root_markers, { '.git' } }
       or vim.list_extend(root_markers, { '.git' })
-
     -- exclude deno
-    if vim.fs.root(bufnr, { 'deno.json', 'deno.jsonc', 'deno.lock' }) then
+    local deno_root = vim.fs.root(bufnr, { 'deno.json', 'deno.jsonc' })
+    local deno_lock_root = vim.fs.root(bufnr, { 'deno.lock' })
+    local project_root = vim.fs.root(bufnr, root_markers)
+    if deno_lock_root and (not project_root or #deno_lock_root > #project_root) then
+      -- deno lock is closer than package manager lock, abort
       return
     end
-
+    if deno_root and (not project_root or #deno_root >= #project_root) then
+      -- deno config is closer than or equal to package manager lock, abort
+      return
+    end
+    -- project is standard TS, not deno
     -- We fallback to the current working directory if no project root is found
-    local project_root = vim.fs.root(bufnr, root_markers) or vim.fn.getcwd()
-
-    on_dir(project_root)
+    on_dir(project_root or vim.fn.getcwd())
   end,
 }
